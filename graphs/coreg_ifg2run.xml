@@ -4,14 +4,14 @@
     <operator>Read</operator>
     <sources/>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>MASTER</file>
+      <file>D:\Programming\Projects\Python\SNAP_parser\master\S1A_IW_SLC__1SDV_20191128T120423_20191128T120449_030111_03709C_118E_Orb.dim</file>
     </parameters>
   </node>
   <node id="Read(2)">
     <operator>Read</operator>
     <sources/>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>SLAVE</file>
+      <file>D:\Programming\Projects\Python\snap2stamps/split\20170319\20170319_IW2.dim</file>
     </parameters>
   </node>
   <node id="Back-Geocoding">
@@ -97,10 +97,10 @@
   <node id="Write(2)">
     <operator>Write</operator>
     <sources>
-      <sourceProduct refid="TOPSAR-Deburst(2)"/>
+      <sourceProduct refid="Subset(2)"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>OUTPUTCOREGFOLDER/OUTPUTFILE</file>
+      <file>D:\Programming\Projects\Python\snap2stamps/coreg/20191128_20170319_IW2.dim</file>
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
   </node>
@@ -120,13 +120,45 @@
       <outputLatLonBands>true</outputLatLonBands>
     </parameters>
   </node>
-  <node id="Write">
-    <operator>Write</operator>
+  <node id="Subset">
+    <operator>Subset</operator>
     <sources>
       <sourceProduct refid="TopoPhaseRemoval"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <file>OUTPUTIFGFOLDER/OUTPUTFILE</file>
+      <sourceBands/>
+      <region>0,0,24608,2844</region>
+      <geoRegion>POLYGON ((89.2558 22.8425,90.9148 22.8425,90.9148 24.2124,89.2558 24.2124,89.2558 22.8425))</geoRegion>
+      <subSamplingX>1</subSamplingX>
+      <subSamplingY>1</subSamplingY>
+      <fullSwath>false</fullSwath>
+      <tiePointGridNames/>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+  <node id="Subset(2)">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="TOPSAR-Deburst(2)"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands/>
+      <region>0,0,24608,2844</region>
+      <geoRegion>POLYGON ((89.2558 22.8425,90.9148 22.8425,90.9148 24.2124,89.2558 24.2124,89.2558 22.8425))</geoRegion>
+      <subSamplingX>1</subSamplingX>
+      <subSamplingY>1</subSamplingY>
+      <fullSwath>false</fullSwath>
+      <tiePointGridNames/>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>D:\Programming\Projects\Python\snap2stamps/ifg/20191128_20170319_IW2.dim</file>
       <formatName>BEAM-DIMAP</formatName>
     </parameters>
   </node>
@@ -159,8 +191,14 @@
     <node id="TopoPhaseRemoval">
       <displayPosition x="694.0" y="129.0"/>
     </node>
+    <node id="Subset">
+      <displayPosition x="874.0" y="135.0"/>
+    </node>
+    <node id="Subset(2)">
+      <displayPosition x="630.0" y="213.0"/>
+    </node>
     <node id="Write">
-      <displayPosition x="891.0" y="127.0"/>
+      <displayPosition x="1036.0" y="128.0"/>
     </node>
   </applicationData>
 </graph>
