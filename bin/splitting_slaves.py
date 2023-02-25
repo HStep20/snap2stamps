@@ -1,7 +1,8 @@
 # Python script to use SNAP as InSAR processor compatible with StaMPS PSI processing
 # Author Jose Manuel Delgado Blasco
-# Date: 21/06/2018
-# Version: 1.0
+# Updated by HStep20 and gdm020
+# Date: 2023-02-24
+# Version: 2.0
 
 # Step 1 : preparing slaves in folder structure
 # Step 2 : TOPSAR Splitting (Assembling) and Apply Orbit
