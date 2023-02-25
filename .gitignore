@@ -1,1 +1,6 @@
-bin/project.conf
+*.pyc
+*/project.ini
+split/
+coreg/
+logs/
+ifg/

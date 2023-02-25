@@ -1,7 +1,8 @@
 ### Python script to use SNAP as InSAR processor compatible with StaMPS PSI processing
 # Author Jose Manuel Delgado Blasco
-# Date: 21/06/2018
-# Version: 1.0
+# Updated by HStep20 and gdm020
+# Date: 2023-02-24
+# Version: 2.0
 
 # Step 1 : preparing slaves in folder structure
 # Step 2 : TOPSAR Splitting (Assembling) and Apply Orbit
@@ -9,7 +10,7 @@
 # Step 4 : StaMPS export
 
 # Added option for CACHE and CPU specification by user
-# Planned support for DEM selection and ORBIT type selection 
+# Planned support for DEM selection and ORBIT type selection
 
 
 import os
@@ -19,115 +20,144 @@ import glob
 import subprocess
 import shlex
 import time
-inputfile = sys.argv[1]
+import re
 
-bar_message='\n#####################################################################\n'
+from log_handler import get_log_handler
 
-# Getting configuration variables from inputfile
-try:
-        in_file = open(inputfile, 'r')
+import configparser
 
-        for line in in_file.readlines():
-                if "PROJECTFOLDER" in line:
-                        PROJECT = line.split('=')[1].strip()
-                        print PROJECT
-                if "IW1" in line:
-                        IW = line.split('=')[1].strip()
-                        print IW
-                if "MASTER" in line:
-                        MASTER = line.split('=')[1].strip()
-                        print MASTER
-                if "GRAPHSFOLDER" in line:
-                        GRAPH = line.split('=')[1].strip()
-                        print GRAPH
-                if "GPTBIN_PATH" in line:
-                        GPT = line.split('=')[1].strip()
-                        print GPT
-		if "LONMIN" in line:
-			LONMIN = line.split('=')[1].strip()
-                if "LATMIN" in line:
-                        LATMIN = line.split('=')[1].strip()
-                if "LONMAX" in line:
-                        LONMAX = line.split('=')[1].strip()
-                if "LATMAX" in line:
-                        LATMAX = line.split('=')[1].strip()
-		if "CACHE" in line:
-			CACHE = line.split('=')[1].strip()
-		if "CPU" in line:
-			CPU = line.split('=')[1].strip()
-finally:
-        in_file.close()
+config = configparser.ConfigParser()
+config.read("./bin/project.ini")
 
-polygon='POLYGON (('+LONMIN+' '+LATMIN+','+LONMAX+' '+LATMIN+','+LONMAX+' '+LATMAX+','+LONMIN+' '+LATMAX+','+LONMIN+' '+LATMIN+'))'
+bar_message = "#####################################################################"
+
+
+PROJECT = os.getcwd()
+GRAPH = f"{os.getcwd()}/graphs/"
+IW = config.get("Production", "IW1")
+MASTER = config.get("Production", "MASTER")
+GPT = config.get("Production", "GPTBIN_PATH")
+LONMIN = config.get("Production", "LONMIN")
+LONMAX = config.get("Production", "LONMAX")
+LATMIN = config.get("Production", "LATMIN")
+LATMAX = config.get("Production", "LATMAX")
+CACHE = config.get("Production", "CACHE")
+CPU = config.get("Production", "CPU")
+
+
+slavesplittedfolder = PROJECT + "/split"
+outputcoregfolder = PROJECT + "/coreg"
+outputifgfolder = PROJECT + "/ifg"
+logfolder = PROJECT + "/logs"
+if not os.path.exists(outputcoregfolder):
+    os.makedirs(outputcoregfolder)
+if not os.path.exists(outputifgfolder):
+    os.makedirs(outputifgfolder)
+if not os.path.exists(logfolder):
+    os.makedirs(logfolder)
+
+logger = get_log_handler(f"{logfolder}/coreg_ifg_proc_stdout.log")
+
+if not os.path.exists(MASTER):
+    logger.error(f"{MASTER} path does not exist on system")
+    exit()
+
+
+polygon = (
+    "POLYGON (("
+    + LONMIN
+    + " "
+    + LATMIN
+    + ","
+    + LONMAX
+    + " "
+    + LATMIN
+    + ","
+    + LONMAX
+    + " "
+    + LATMAX
+    + ","
+    + LONMIN
+    + " "
+    + LATMAX
+    + ","
+    + LONMIN
+    + " "
+    + LATMIN
+    + "))"
+)
+
+logger.info(f"Using Polygon: {polygon}")
 
 ######################################################################################
 ## TOPSAR Coregistration and Interferogram formation ##
 ######################################################################################
-slavesplittedfolder=PROJECT+'/split'
-outputcoregfolder=PROJECT+'/coreg'
-outputifgfolder=PROJECT+'/ifg'
-logfolder=PROJECT+'/logs'
-if not os.path.exists(outputcoregfolder):
-                os.makedirs(outputcoregfolder)
-if not os.path.exists(outputifgfolder):
-                os.makedirs(outputifgfolder)
-if not os.path.exists(logfolder):
-                os.makedirs(logfolder)
 
-outlog=logfolder+'/coreg_ifg_proc_stdout.log'
 
-graphxml=GRAPH+'/coreg_ifg_computation_subset.xml'
-print graphxml
-graph2run=GRAPH+'/coreg_ifg2run.xml'
+# Check SNAP Version for correct GRAPH
+args = ["gpt", "--diag"]
+process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+stdout = process.communicate()[0]
+stdout_lines = str(stdout).lower()
+snap_release_version = re.search(
+    "snap release version [0-9]+.[0-9]+", stdout_lines
+).group()
+snapversion = re.search("[0-9]+.[0-9]+", snap_release_version).group()
+graph2run = GRAPH + "/coreg_ifg2run.xml"
+if float(snapversion) < 7:
+    graphxml = GRAPH + "/coreg_ifg_computation_subset_legacy.xml"
+else:
+    graphxml = GRAPH + "/coreg_ifg_computation_subset.xml"
 
-out_file = open(outlog, 'a')
-err_file=out_file
+logger.info(graphxml)
+logger.info("## Coregistration and Interferogram computation started:")
 
-print bar_message
-out_file.write(bar_message)
-message='## Coregistration and Interferogram computation started:\n'
-print message
-out_file.write(message)
-print bar_message 
-out_file.write(bar_message)
-k=0
-for dimfile in glob.iglob(slavesplittedfolder + '/*/*'+IW+'.dim'):
-    print dimfile
-    k=k+1
+
+k = 0
+split_files = glob.iglob(slavesplittedfolder + "/*/*" + IW + ".dim")
+
+for k, dimfile in enumerate(split_files):
+    logger.info(dimfile)
     head, tail = os.path.split(os.path.join(slavesplittedfolder, dimfile))
-    message='['+str(k)+'] Processing slave file :'+tail+'\n'
-    print message
-    out_file.write(message)
-    head , tailm = os.path.split(MASTER)
-    outputname=tailm[17:25]+'_'+tail[0:8]+'_'+IW+'.dim'
-    with open(graphxml, 'r') as file :
-       filedata = file.read()
+    logger.info(f"[{str(k)}] Processing slave file : {tail}")
+    head, tailm = os.path.split(MASTER)
+    outputname = tailm[17:25] + "_" + tail[0:8] + "_" + IW + ".dim"
+    with open(graphxml, "r") as file:
+        filedata = file.read()
     # Replace the target string
-    filedata = filedata.replace('MASTER',MASTER)
-    filedata = filedata.replace('SLAVE', dimfile)
-    filedata = filedata.replace('OUTPUTCOREGFOLDER',outputcoregfolder)
-    filedata = filedata.replace('OUTPUTIFGFOLDER', outputifgfolder)
-    filedata = filedata.replace('OUTPUTFILE',outputname)
-    filedata = filedata.replace('POLYGON',polygon)
+    filedata = filedata.replace("MASTER", MASTER)
+    filedata = filedata.replace("SLAVE", dimfile)
+    filedata = filedata.replace("OUTPUTCOREGFOLDER", outputcoregfolder)
+    filedata = filedata.replace("OUTPUTIFGFOLDER", outputifgfolder)
+    filedata = filedata.replace("OUTPUTFILE", outputname)
+    filedata = filedata.replace("POLYGON", polygon)
     # Write the file out again
-    with open(graph2run, 'w') as file:
-       file.write(filedata)
-    args = [ GPT, graph2run, '-c', CACHE, '-q', CPU]
+    with open(graph2run, "w") as file:
+        file.write(filedata)
+    args = [GPT, graph2run, "-c", CACHE, "-q", CPU]
     # Launch the processing
-    process = subprocess.Popen(args, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    process = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True
+    )
     timeStarted = time.time()
     stdout = process.communicate()[0]
-    print 'SNAP STDOUT:{}'.format(stdout)
-    timeDelta = time.time() - timeStarted                     # Get execution time.
-    print('['+str(k)+'] Finished process in '+str(timeDelta)+' seconds.')
-    out_file.write('['+str(k)+'] Finished process in '+str(timeDelta)+' seconds.\n')
-    if process.returncode != 0 :
-        message='Error computing with coregistration and interferogram generation of splitted slave '+str(dimfile)
-        err_file.write(message+'\n')
+    logger.info("SNAP STDOUT:{}".format(stdout))
+    timeDelta = time.time() - timeStarted  # Get execution time.
+    logger.info("[" + str(k) + "] Finished process in " + str(timeDelta) + " seconds.")
+
+    if process.returncode != 0:
+        message = (
+            "Error computing with coregistration and interferogram generation of splitted slave "
+            + str(dimfile)
+        )
+        logger.error(message)
     else:
-        message='Coregistration and Interferogram computation for data '+str(tail)+' successfully completed.\n'
-        print message
-        out_file.write(message)
-    print bar_message
-    out_file.write(bar_message)
-out_file.close()
+        message = (
+            "Coregistration and Interferogram computation for data "
+            + str(tail)
+            + " successfully completed.\n"
+        )
+        logger.info(message)
+    logger.info(bar_message)
+else:
+    logger.warning("No .dim Files Found to process")
